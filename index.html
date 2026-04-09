@@ -797,8 +797,12 @@ async function fetchFX(){
   FX.loading=true;
   renderFXBadge('loading');
 
-  // APIs tried in order — all have CORS: * headers (work from file://)
+  // APIs tried in order — all work from any origin including Netlify
   const apis=[
+    {
+      url:'https://open.er-api.com/v6/latest/USD',
+      parse:d=>({usdMxn:d.rates.MXN, usdGbp:d.rates.GBP})
+    },
     {
       url:'https://api.exchangerate-api.com/v4/latest/USD',
       parse:d=>({usdMxn:d.rates.MXN, usdGbp:d.rates.GBP})
@@ -1213,7 +1217,7 @@ function saveDay(){
   toast('Día '+currentDay+' guardado correctamente','ok');
 }
 function clearDay(){
-  ['g-es-tel','g-es-vid','g-fr-tel','g-fr-vid','p-mins','d-mins'].forEach(id=>document.getElementById(id).value=0);
+  ['g-es-tel','g-es-vid','g-fr-tel','g-fr-vid','p-mins','d-tel','d-vid'].forEach(id=>document.getElementById(id).value=0);
   document.getElementById('day-notes').value='';recalcUI();
 }
 
