@@ -864,52 +864,58 @@ function exportToSheets(){
   MONTHS.forEach(({m,name})=>{
     const days=getMonthDays(m);
     const hdr=['Fecha','Día','G ES Tel','G ES Vid','G FR Tel','G FR Vid','Globo USD',
-               'Propio min','Propio USD','Dals min','Dals GBP','Total USD','Notas'];
+               'Propio min','Propio USD','Dals Tel min','Dals Vid min','Dals GBP','Total USD','Total MXN','Notas'];
     const rows=[hdr];
-    let tot={gEsTel:0,gEsVid:0,gFrTel:0,gFrVid:0,gUSD:0,pMins:0,pUSD:0,dMins:0,dGBP:0,usd:0};
+    let tot={gEsTel:0,gEsVid:0,gFrTel:0,gFrVid:0,gUSD:0,pMins:0,pUSD:0,dTel:0,dVid:0,dGBP:0,usd:0,mxn:0};
     days.forEach(d=>{
       const data=getDayData(m,d),e=calcDay(data);
       const date=new Date(2026,m-1,d);
+      const mxn=+toMXN(e.totalUSD,e.dGBP).toFixed(2);
       rows.push([date.toLocaleDateString('es-MX'),DAY_ABBR[date.getDay()],
         data.gEsTel||0,data.gEsVid||0,data.gFrTel||0,data.gFrVid||0,
         +e.gUSD.toFixed(2),data.pMins||0,+e.pUSD.toFixed(2),
-        data.dMins||0,+e.dGBP.toFixed(2),+e.totalUSD.toFixed(2),data.notes||'']);
+        data.dTel||0,data.dVid||0,+e.dGBP.toFixed(2),+e.totalUSD.toFixed(2),mxn,data.notes||'']);
       tot.gEsTel+=data.gEsTel||0;tot.gEsVid+=data.gEsVid||0;tot.gFrTel+=data.gFrTel||0;tot.gFrVid+=data.gFrVid||0;
-      tot.gUSD+=e.gUSD;tot.pMins+=data.pMins||0;tot.pUSD+=e.pUSD;tot.dMins+=data.dMins||0;tot.dGBP+=e.dGBP;tot.usd+=e.totalUSD;
+      tot.gUSD+=e.gUSD;tot.pMins+=data.pMins||0;tot.pUSD+=e.pUSD;
+      tot.dTel+=data.dTel||0;tot.dVid+=data.dVid||0;tot.dGBP+=e.dGBP;tot.usd+=e.totalUSD;tot.mxn+=mxn;
     });
     rows.push(['TOTAL','',tot.gEsTel,tot.gEsVid,tot.gFrTel,tot.gFrVid,
-               +tot.gUSD.toFixed(2),tot.pMins,+tot.pUSD.toFixed(2),tot.dMins,
-               +tot.dGBP.toFixed(2),+tot.usd.toFixed(2),'']);
+               +tot.gUSD.toFixed(2),tot.pMins,+tot.pUSD.toFixed(2),tot.dTel,tot.dVid,
+               +tot.dGBP.toFixed(2),+tot.usd.toFixed(2),+tot.mxn.toFixed(2),'']);
     const ws=XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols']=[{wch:12},{wch:6},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12},{wch:10},{wch:12},{wch:10},{wch:12},{wch:12},{wch:30}];
+    ws['!cols']=[{wch:12},{wch:6},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12},{wch:10},{wch:12},{wch:10},{wch:10},{wch:12},{wch:12},{wch:14},{wch:30}];
     XLSX.utils.book_append_sheet(wb,ws,name+' 2026');
   });
   // Summary
-  const sHdr=['Mes','Globo Bruto','Comisión','Globo Neto','Propio USD','Dals GBP','Total USD','Pago Globo/Dals','Propio Q1','Propio Q2'];
+  const sHdr=['Mes','Globo Bruto USD','Comisión','Globo Neto USD','Globo Neto MXN','Propio USD','Propio MXN','Dals GBP','Dals MXN','Total MXN','Pago Globo/Dals','Propio Q1 MXN','Propio Q2 MXN'];
   const sRows=[sHdr];
   MONTHS.forEach(({m,name})=>{
     const t=calcMonth(m);
     if(t.totalMins>0||t.dGBP>0){
       const next=MN_FULL[m+1]||'Ene 2027',mFull=MN_FULL[m];
-      sRows.push([name+' 2026',+t.gUSD.toFixed(2),-3,+(t.gUSD-3).toFixed(2),
-        +t.pUSD.toFixed(2),+t.dGBP.toFixed(2),+t.totalUSD.toFixed(2),
-        'Fin '+next,'~15 '+mFull,'~30 '+mFull]);
+      const gNeto=t.gUSD-3;
+      const totalMxn=+toMXN(t.totalUSD,t.dGBP).toFixed(2);
+      sRows.push([name+' 2026',+t.gUSD.toFixed(2),-3,+gNeto.toFixed(2),+toMXN(gNeto,0).toFixed(2),
+        +t.pUSD.toFixed(2),+toMXN(t.pUSD,0).toFixed(2),
+        +t.dGBP.toFixed(2),+toMXN(0,t.dGBP).toFixed(2),totalMxn,
+        'Fin '+next,+toMXN(t.pUSD/2,0).toFixed(2),+toMXN(t.pUSD/2,0).toFixed(2)]);
     }
   });
   const ws2=XLSX.utils.aoa_to_sheet(sRows);
   ws2['!cols']=Array(10).fill({wch:16});
   XLSX.utils.book_append_sheet(wb,ws2,'Resumen Pagos');
   // Daily goal log
-  const gv=getDailyGoal();
-  const gHdr=['Mes','Día','USD ganado','Meta','¿Cumplida?','% Meta'];
+  const gMxn=getDailyGoalMxn();
+  const gHdr=['Mes','Día','MXN ganado','Meta MXN','USD ganado','GBP ganado','¿Cumplida?','% Meta'];
   const gRows=[gHdr];
   MONTHS.forEach(({m,name})=>{
     getMonthDays(m).forEach(d=>{
       const e=calcDay(getDayData(m,d));
       if(e.totalMins>0){
-        const earned=+e.totalUSD.toFixed(2);
-        gRows.push([name,d,earned,gv||'Sin meta',gv>0?(earned>=gv?'SÍ':'NO'):'-',
-          gv>0?+(earned/gv*100).toFixed(1):'-']);
+        const earnedMxn=+toMXN(e.totalUSD,e.dGBP).toFixed(2);
+        gRows.push([name,d,earnedMxn,gMxn||'Sin meta',+e.totalUSD.toFixed(2),+e.dGBP.toFixed(2),
+          gMxn>0?(earnedMxn>=gMxn?'SÍ':'NO'):'-',
+          gMxn>0?+(earnedMxn/gMxn*100).toFixed(1):'-']);
       }
     });
   });
@@ -933,7 +939,7 @@ function importData(ev){
       const p=JSON.parse(e.target.result);
       if(!p||!p.days){toast('Archivo inválido');return;}
       DB=p;saveLS();
-      const g=getDailyGoal();
+      const g=getDailyGoalMxn();
       document.getElementById('daily-goal').value=g||'';
       buildMonthTabs();buildDayGrid();recalcUI();updateHeaderSub();updateDataInfo();renderGoals();
       toast('Datos importados correctamente','ok');
@@ -947,7 +953,7 @@ function updateDataInfo(){
   const el=document.getElementById('data-info');
   const n=Object.keys(DB.days).filter(k=>{
     const v=DB.days[k];
-    return(v.gEsTel||0)+(v.gEsVid||0)+(v.gFrTel||0)+(v.gFrVid||0)+(v.pMins||0)+(v.dMins||0)>0;
+    return(v.gEsTel||0)+(v.gEsVid||0)+(v.gFrTel||0)+(v.gFrVid||0)+(v.pMins||0)+(v.dTel||0)+(v.dVid||0)+(v.dMins||0)>0;
   }).length;
   if(DB.savedAt){
     const d=new Date(DB.savedAt);
@@ -1319,39 +1325,44 @@ function renderPayments(){
     const t=calcMonth(m);if(t.totalMins===0&&t.dGBP===0)return;any=true;
     const next=MN_FULL[m+1]||'Enero 2027',mFull=MN_FULL[m];
     html+=`<div class="pay-month-lbl">${name} 2026</div>`;
-    if(t.gUSD>0){html+=`<div class="pay-card pay-card-g">
-      <div class="pay-co">Globo</div>
-      <div class="pay-amt" style="color:var(--globo)">${fUSD(t.gUSD-3)}</div>
-      <div class="pay-note">Bruto ${fUSD(t.gUSD)} − $3.00 comisión</div>
-      <div class="pay-date">Pago a finales de ${next}</div>
-    </div>`;}
-    if(t.pUSD>0){const s=t.pUSD/2;
+    if(t.gUSD>0){
+      const n=t.gUSD-3,mxn=toMXN(n,0);
+      html+=`<div class="pay-card pay-card-g">
+        <div class="pay-co">Globo</div>
+        <div class="pay-amt" style="color:var(--globo)">${fMXN(mxn)}</div>
+        <div class="pay-note">${fUSD(n)} · Bruto ${fUSD(t.gUSD)} − $3 comisión · TC: ${FX.usdMxn.toFixed(2)}</div>
+        <div class="pay-date">Pago a finales de ${next}</div>
+      </div>`;}
+    if(t.pUSD>0){const s=t.pUSD/2,sMxn=toMXN(s,0);
       html+=`<div class="pay-card pay-card-p">
         <div class="pay-co">Propio — Quincena 1</div>
-        <div class="pay-amt" style="color:var(--propio)">${fUSD(s)}</div>
+        <div class="pay-amt" style="color:var(--propio)">${fMXN(sMxn)}</div>
+        <div class="pay-note">${fUSD(s)} · TC: ${FX.usdMxn.toFixed(2)}</div>
         <div class="pay-date">~15 de ${mFull} 2026</div>
       </div>
       <div class="pay-card pay-card-p">
         <div class="pay-co">Propio — Quincena 2</div>
-        <div class="pay-amt" style="color:var(--propio)">${fUSD(s)}</div>
+        <div class="pay-amt" style="color:var(--propio)">${fMXN(sMxn)}</div>
+        <div class="pay-note">${fUSD(s)} · TC: ${FX.usdMxn.toFixed(2)}</div>
         <div class="pay-date">~30 de ${mFull} 2026</div>
       </div>`;}
-    if(t.dGBP>0){html+=`<div class="pay-card pay-card-d">
-      <div class="pay-co">Dals</div>
-      <div class="pay-amt" style="color:var(--dals)">${fGBP(t.dGBP)}</div>
-      <div class="pay-note">Sin comisión · en GBP → convertir a EUR</div>
-      <div class="pay-date">Pago a finales de ${next}</div>
-    </div>`;}
+    if(t.dGBP>0){const dMxn=toMXN(0,t.dGBP);
+      html+=`<div class="pay-card pay-card-d">
+        <div class="pay-co">Dals</div>
+        <div class="pay-amt" style="color:var(--dals)">${fMXN(dMxn)}</div>
+        <div class="pay-note">${fGBP(t.dGBP)} · Sin comisión · Pago en GBP→EUR · TC GBP: ${FX.gbpMxn.toFixed(2)}</div>
+        <div class="pay-date">Pago a finales de ${next}</div>
+      </div>`;}
   });
   calEl.innerHTML=any?html:'<div class="empty">Registra días trabajados para ver el calendario de cobros</div>';
   const gM=MONTHS.filter(({m})=>calcMonth(m).gMins>0).length,gN=all.gUSD-3*gM;
+  const totalMxn=toMXN(gN+all.pUSD,all.dGBP);
   totEl.innerHTML=[
-    ['Globo bruto',fUSD(all.gUSD),'var(--globo)'],
-    ['Globo neto (−$3 × '+gM+' pagos)',fUSD(gN),'var(--globo)'],
-    ['Propio',fUSD(all.pUSD),'var(--propio)'],
-    ['Dals',fGBP(all.dGBP),'var(--dals)'],
-    ['Total USD neto','<strong>'+fUSD(gN+all.pUSD)+'</strong>','var(--cream)'],
-    ['Total GBP','<strong>'+fGBP(all.dGBP)+'</strong>','var(--dals)'],
+    ['Total MXN (todo incluido)',fMXN(totalMxn),'var(--gold2)'],
+    ['Globo neto USD→MXN',fUSD(gN)+' = '+fMXN(toMXN(gN,0)),'var(--globo)'],
+    ['Propio USD→MXN',fUSD(all.pUSD)+' = '+fMXN(toMXN(all.pUSD,0)),'var(--propio)'],
+    ['Dals GBP→MXN',fGBP(all.dGBP)+' = '+fMXN(toMXN(0,all.dGBP)),'var(--dals)'],
+    ['TC aplicado','USD '+FX.usdMxn.toFixed(2)+' · GBP '+FX.gbpMxn.toFixed(2),'var(--text3)'],
   ].map(([l,v,c])=>`<div class="stat-row"><span class="stat-lbl">${l}</span><span class="stat-val" style="color:${c}">${v}</span></div>`).join('');
 }
 
@@ -1365,7 +1376,7 @@ function toast(msg,type=''){
 /* ══ INIT ══ */
 loadLS();
 buildMonthTabs();
-const sg=getDailyGoal();if(sg>0)document.getElementById('daily-goal').value=sg;
+const sg=getDailyGoalMxn();if(sg>0)document.getElementById('daily-goal').value=sg;
 buildDayGrid();recalcUI();updateHeaderSub();updateDataInfo();renderGoals();
 
 // update date display
@@ -1381,6 +1392,10 @@ if(now.getFullYear()===2026){
     if(getMonthDays(tm).includes(td)){currentDay=td;loadDayIntoForm();}
   }
 }
+
+// Fetch live FX and refresh every 30 minutes
+fetchFX();
+setInterval(fetchFX,30*60*1000);
 </script>
 </body>
 </html>
